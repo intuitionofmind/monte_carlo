@@ -24,6 +24,8 @@ class Ising {
         void MkvEvolve(std::vector<int>& config, int num);
         double EnergyDensity(std::vector<int> config);
         double Magnetization(std::vector<int> config);
+        double MagnetizationQuad(std::vector<int> config);
+        double MagnetizationBiquad(std::vector<int> config);
         void PrintConfig(std::vector<int> config);
         
         Ising(double h, int nx, int ny, std::string bcx, std::string bcy, double b);
@@ -88,42 +90,46 @@ int Ising::Wolff(std::vector<int>& config) {
         std::uniform_int_distribution<int> DisY(0, numSiteY-1);
         int x = DisX(gen);
         int y = DisY(gen);
-        int site = Coordinate(x, y);
+        int seed = Coordinate(x, y);
 
         std::vector<int> cluster; // All the sites within the cluster. 
         std::vector<int> current; // Current sites to search ahead. 
         std::vector<int> forward; // Record the sites searhed to add to the cluster. 
-        cluster.push_back(site);
-        current.push_back(site);
-        // PrintConfig(config);
+        cluster.push_back(seed);
+        current.push_back(seed);
+
         std::uniform_real_distribution<long double> Prob(0.0, 1.0);
-        while (!current.empty()) { // If forward is empty, terminate the loop. 
-            while (!current.empty()) {
+        while (!current.empty()) { // If forward (now has been copied to current) is empty, then terminate the procedure.
+            while (!current.empty()) { // Search around all the current loops.
                 int cx = current.back() % numSiteX;
                 int cy = current.back() / numSiteX;
-                int cspin = config[current.back()];
+                int cSpin = config[current.back()];
 
                 // Search the nearest neighbor four sites.
                 for (int i = 0; i < 2; ++i) { // Search along x-direction. 
                     int fx = (cx+(2*i-1)+numSiteX) % numSiteX;
                     int fy = cy;
-                    int fsite = Coordinate(fx, fy);
-                    int fspin = config[fsite];
+                    int fSite = Coordinate(fx, fy);
                     double r = Prob(gen);
-                    if (r < p && std::find(cluster.begin(), cluster.end(), fsite) == cluster.end() && fspin == cspin) {
-                        cluster.push_back(fsite);
-                        forward.push_back(fsite);
+                    if (r < p && config[fSite] == cSpin) {
+                        auto it = std::lower_bound(cluster.begin(), cluster.end(), fSite); // Return the first iterator which does not compare less than fSite.
+                        if (*it != fSite) {
+                            cluster.insert(it, fSite); // Insert before the specified position.
+                            forward.push_back(fSite);
+                            }
                         }
                     }
                 for (int i = 0; i < 2; ++i) { // Search along y-direction. 
                     int fx = cx;
                     int fy = (cy+(2*i-1)+numSiteY) % numSiteY;
-                    int fsite = Coordinate(fx, fy);
-                    int fspin = config[fsite];
+                    int fSite = Coordinate(fx, fy);
                     double r = Prob(gen);
-                    if (r < p && std::find(cluster.begin(), cluster.end(), fsite) == cluster.end() && fspin == cspin) {
-                        cluster.push_back(fsite);
-                        forward.push_back(fsite);
+                    if (r < p  && config[fSite] == cSpin) {
+                        auto it = std::lower_bound(cluster.begin(), cluster.end(), fSite);
+                        if (*it != fSite) {
+                            cluster.insert(it, fSite);
+                            forward.push_back(fSite);
+                            }
                         }
                     }
                 current.pop_back(); // Pop the last element until it is empty. 
@@ -134,20 +140,18 @@ int Ising::Wolff(std::vector<int>& config) {
 
         // Perform simple update if cluster is not constructed, or flip the cluster with certainty.
         if (1 == cluster.size()) {
-            int ns = config[Coordinate(x, (y+1) % numSiteY)]+config[Coordinate(x, (y-1+numSiteY) % numSiteY)]+config[Coordinate(x, (y+1) % numSiteY)]+config[Coordinate(x, (y-1+numSiteY) % numSiteY)];
-            double cost = 2.0*config[site]*ns;
+            int ns = config[Coordinate((x+1) % numSiteX, y)]+config[Coordinate((x-1+numSiteX) % numSiteX, y)]+config[Coordinate(x, (y+1) % numSiteY)]+config[Coordinate(x, (y-1+numSiteY) % numSiteY)];
+            double cost = 2.0*config[ns]*ns;
             double rr = Prob(gen);
-            if (rr < std::exp(-1.0*beta*cost)) { config[site] = -1*config[site]; }
+            if (rr < std::exp(-1.0*beta*cost)) { config[seed] = -1*config[seed]; }
             }
-        else { for (std::vector<int>::iterator it = cluster.begin(); it != cluster.end(); ++it) { config[*it] = -1*config[*it]; } }
+        else { for (auto it = cluster.begin(); it != cluster.end(); ++it) { config[*it] = -1*config[*it]; } }
         return cluster.size();
         }
 
 // Evolve the config by num steps.
 void Ising::MkvEvolve(std::vector<int>& config, int num) {
-        for (int i = 0; i < num; ++i) {
-            Wolff(config);
-            }
+        for (int i = 0; i < num; ++i) { SimpleUpdate(config); }
         }
 
 double Ising::EnergyDensity(std::vector<int> config){
@@ -163,7 +167,11 @@ double Ising::EnergyDensity(std::vector<int> config){
         return e / config.size();
         }
 
-double Ising::Magnetization(std::vector<int> config) { return double(std::accumulate(config.begin(), config.end(), 0.0)) / config.size(); }
+double Ising::Magnetization(std::vector<int> config) { return abs(double(std::accumulate(config.begin(), config.end(), 0.0)) / config.size()); }
+
+double Ising::MagnetizationQuad(std::vector<int> config) { return std::pow(Magnetization(config), 2.0); }
+
+double Ising::MagnetizationBiquad(std::vector<int> config) { return std::pow(Magnetization(config), 4.0); }
 
 // double Ising:MagSuseptibility()
 void Ising::PrintConfig(std::vector<int> config) {

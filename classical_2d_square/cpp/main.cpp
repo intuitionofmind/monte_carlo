@@ -5,15 +5,14 @@ int main() {
 
         std::ofstream file_log("log", std::ios_base::app);
         std::ofstream file_mag("mag.dat", std::ios_base::app | std::ios_base::binary);
-        // std::ofstream file_mag_error("eigenvectors.dat", std::ios_base::app | std::ios_base::binary);
 
         time_t start, end;
         start = time(NULL);
 
-        int size = 32;
+        int size = 16;
         int numSample = 100;
         int numMeasure = 100;
-        double b = 0.01;
+        double b = 0.3;
         for (int l = 0; l < numSample; ++l) {
             Ising ising(0.0, size, size, "P", "P", b);
             int nx = ising.NumSiteX();
@@ -21,24 +20,30 @@ int main() {
             int numSite = nx*ny;
             std::vector<int> config(numSite);
             ising.Initialization(config);
-            ising.MkvEvolve(config, 10000); // Initial thermalization. 
+            ising.MkvEvolve(config, 20000); // Initial thermalization. 
 
             std::vector<double> ene;
             std::vector<double> mag;
+            std::vector<double> magQuad;
+            std::vector<double> magBiquad;
             for (int i = 0; i < numMeasure; ++i) {
                 // ising.PrintConfig(config);
                 ene.push_back(ising.EnergyDensity(config));
                 mag.push_back(abs(ising.Magnetization(config)));
+
                 int cs = ising.Wolff(config);
-                int numInterval = 5*int(numSite / cs);
+                int numInterval = 2*int(numSite / cs);
                 // std::cout << numInterval << std::endl;
                 for (int l = 0; l < numInterval; ++l) { ising.Wolff(config); }
+                // for (int l = 0; l < 2000; ++l) { ising.SimpleUpdate(config); }
                 }
             double res = Mean(mag);
             double resErr = StdErr(mag);
             file_mag.write((char*)(&res), sizeof(double));
             file_mag.write((char*)(&resErr), sizeof(double));
+
             std::cout << b << " energy: " << Mean(ene) <<" mag: " << Mean(mag) << " " << StdErr(mag) << std::endl;
+            file_log << b << " energy: " << Mean(ene) <<" mag: " << Mean(mag) << " " << StdErr(mag) << std::endl;
             b += 0.01;
             }
 

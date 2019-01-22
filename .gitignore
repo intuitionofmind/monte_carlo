@@ -1,0 +1,16 @@
+*.aux
+*.bbl
+*.blg
+*.log
+*.out
+*.dvi
+*.synctex.gz
+*.rel
+*.bak
+*.pyc
+*.nav
+*.toc
+*.snm
+*.npy
+*.pdf
+*.dat
